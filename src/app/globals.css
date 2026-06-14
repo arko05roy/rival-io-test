@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: var(--font-newsreader), Georgia, serif;
+  --font-body: var(--font-dm-sans), system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+
+  --color-ledger: #e8ebf0;
+  --color-ink: #181b20;
+  --color-ink-muted: #5c6370;
+  --color-surface: #faf9f7;
+  --color-surface-raised: #ffffff;
+  --color-action: #5b6fd8;
+  --color-action-hover: #4a5bc4;
+  --color-ember: #c2572a;
+  --color-moss: #4a7c59;
+  --color-rose: #b84343;
+  --color-rail: #2b2d31;
+
+  --color-dark-bg: #141518;
+  --color-dark-surface: #1e2024;
+  --color-dark-raised: #282a30;
+  --color-dark-ink: #edeeef;
+  --color-dark-muted: #9aa0ab;
+}
+
+@layer base {
+  * {
+    @apply border-ink/10 dark:border-dark-muted/20;
+  }
+
+  body {
+    @apply bg-surface text-ink font-body antialiased dark:bg-dark-bg dark:text-dark-ink;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-action;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    @apply transition-colors duration-150;
+  }
+}
+
+@layer utilities {
+  .ledger-paper {
+    background-color: var(--color-surface);
+    background-image:
+      linear-gradient(var(--color-ink) / 0.03 1px, transparent 1px);
+    background-size: 100% 2rem;
+  }
+
+  .dark .ledger-paper {
+    background-color: var(--color-dark-bg);
+    background-image:
+      linear-gradient(var(--color-dark-muted) / 0.08 1px, transparent 1px);
+  }
+
+  .ledger-rules-dark {
+    background-image:
+      linear-gradient(90deg, transparent 3rem, rgb(255 255 255 / 0.06) 3rem, rgb(255 255 255 / 0.06) calc(3rem + 1px), transparent calc(3rem + 1px)),
+      linear-gradient(rgb(255 255 255 / 0.04) 1px, transparent 1px);
+    background-size: 100% 2.5rem;
+  }
+
+  .task-enter {
+    animation: task-enter 0.35s ease-out both;
+  }
+
+  .task-enter:nth-child(1) { animation-delay: 0ms; }
+  .task-enter:nth-child(2) { animation-delay: 40ms; }
+  .task-enter:nth-child(3) { animation-delay: 80ms; }
+  .task-enter:nth-child(4) { animation-delay: 120ms; }
+  .task-enter:nth-child(5) { animation-delay: 160ms; }
+  .task-enter:nth-child(n+6) { animation-delay: 200ms; }
+}
+
+@keyframes task-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .task-enter {
+    animation: none;
+  }
+}
