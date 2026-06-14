@@ -8,6 +8,7 @@ COPY api/go.mod api/go.sum ./api/
 RUN go mod download
 
 COPY api/ ./api/
+COPY internal/ ./internal/
 COPY cmd/ ./cmd/
 
 RUN CGO_ENABLED=0 go build -o server ./cmd/server

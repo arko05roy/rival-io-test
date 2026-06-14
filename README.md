@@ -199,7 +199,8 @@ npm test
 ## Project structure
 
 ```
-├── api/              # Go REST API (Vercel serverless entry: index.go)
+├── api/              # Vercel entry point only (index.go)
+├── internal/core/    # Go REST API logic
 ├── cmd/server/       # Standalone API server for local dev
 ├── src/              # Next.js app
 ├── vercel.json       # Routes /api/* to Go handler

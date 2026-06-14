@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"taskmanager/api/core"
+	"taskmanager/internal/core"
 )
 
 func main() {

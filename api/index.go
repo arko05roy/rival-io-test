@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"taskmanager/api/core"
+	"taskmanager/internal/core"
 )
 
 // Handler is the Vercel serverless entry point.
