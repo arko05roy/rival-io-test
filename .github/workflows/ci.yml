@@ -16,7 +16,7 @@ jobs:
       - name: Run Go tests
         run: |
           go mod tidy
-          cd api && go mod tidy
+          (cd api && go mod tidy)
           go test ./pkg/core/... -v
 
   test-frontend:
