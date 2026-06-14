@@ -1,49 +1,59 @@
 # Ledger — Task Management
 
-A full-stack task management app with a Go REST API, Next.js frontend, and PostgreSQL persistence. Built for the Rival.io developer assessment.
-
-## Live demo
-
-Deploy to Vercel with a hosted PostgreSQL (Neon, Supabase, or Vercel Postgres). See [Deployment](#deployment) below.
+Full-stack task management app with a Go REST API, Next.js frontend, and PostgreSQL. Built for the Rival.io developer assessment.
 
 ## Stack
 
-| Layer    | Technology                          |
-|----------|-------------------------------------|
+| Layer    | Technology                         |
+|----------|------------------------------------|
 | Frontend | Next.js 15, React 19, Tailwind CSS 4 |
-| Backend  | Go 1.22, chi router, JWT auth       |
-| Database | PostgreSQL                          |
-| Deploy   | Vercel (Next.js + Go serverless)    |
+| Backend  | Go 1.22, chi router, JWT auth      |
+| Database | PostgreSQL                         |
+| Deploy   | Vercel (Next.js + Go serverless)   |
 
 ## Features
 
-- **Tasks CRUD** — create, read, update, delete with validation
-- **Auth** — signup/login with bcrypt-hashed passwords and JWT; persisted in localStorage
+- **Tasks CRUD** — create, read, update, delete with server-side validation
+- **Auth** — signup/login with bcrypt-hashed passwords and JWT
 - **Filtering** — status filter, title search, sort by due date / priority / created date
 - **Pagination** — server-side page/limit
 - **User isolation** — users only see their own tasks
-- **Bonus** — dark mode toggle (persisted), optimistic UI on complete/delete, Docker Compose for local API+DB, GitHub Actions CI
+- **Dark mode** — toggle persisted in localStorage
+- **Optimistic UI** — complete and delete update the list immediately, with rollback on failure
+- **Delete confirmation** — modal dialog instead of a browser alert
+- **Date picker** — custom calendar for due dates, timezone-safe display
+- **Docker Compose** — local Postgres + API
+- **CI** — GitHub Actions runs Go and frontend tests on push
 
-## API endpoints
+## Assumptions & trade-offs
 
-| Method | Path            | Auth | Description              |
-|--------|-----------------|------|--------------------------|
-| POST   | `/api/auth/signup` | —  | Register                 |
-| POST   | `/api/auth/login`  | —  | Login, returns JWT       |
-| GET    | `/api/health`      | —  | Health check             |
-| POST   | `/api/tasks`       | ✓  | Create task              |
-| GET    | `/api/tasks`       | ✓  | List (filter, search, sort, paginate) |
-| GET    | `/api/tasks/:id`   | ✓  | Get one task             |
-| PATCH  | `/api/tasks/:id`   | ✓  | Update task              |
-| DELETE | `/api/tasks/:id`   | ✓  | Delete task              |
+**Auth**
 
-Query params for `GET /api/tasks`:
+- JWT is stored in `localStorage` and sent as a `Bearer` token. This keeps the frontend simple but is more exposed to XSS than httpOnly cookies. A production app would likely use short-lived access tokens with refresh cookies.
 
-- `status` — `todo`, `in_progress`, `complete`
-- `search` — case-insensitive title match
-- `sort_by` — `due_date`, `priority`, `created_at`
-- `sort_order` — `asc` or `desc`
-- `page`, `limit` — pagination (default page=1, limit=10)
+**Deployment**
+
+- On Vercel, all `/api/*` traffic goes through a single Go serverless handler (`api/index.go`). Cold starts add latency on the first request after idle time. Each instance maintains its own pgx connection pool — use a pooled connection string (Neon, Supabase, Vercel Postgres) in production.
+
+**Database**
+
+- Schema is applied via `CREATE TABLE IF NOT EXISTS` on the first API request. Fine for this scope; a migration tool (e.g. goose, golang-migrate) would be needed for evolving production schemas.
+
+**Due dates**
+
+- Stored as `TIMESTAMPTZ` in Postgres, but the frontend treats them as calendar dates (`YYYY-MM-DD`) to avoid timezone shifts when picking, editing, or displaying a date. The API accepts ISO 8601 or `YYYY-MM-DD` strings.
+
+**Admin role**
+
+- The `users` table has a `role` column (`user` / `admin`). Admins can list all tasks via the API, but there is no UI to promote users — set `role = 'admin'` manually in the database if needed.
+
+**Search**
+
+- Title search is debounced on the client (300 ms) then sent to the server. Very fast typists may see a brief delay before results update.
+
+**Testing**
+
+- Tests cover validation, auth helpers, date/urgency logic, and password hashing. There are no end-to-end or integration tests against a live database.
 
 ## Local development
 
@@ -53,159 +63,122 @@ Query params for `GET /api/tasks`:
 - Go 1.22+
 - PostgreSQL 14+ (or Docker)
 
-### 1. Database
-
-**Option A — Docker Compose (API + DB)**
+### Quick start
 
 ```bash
+# 1. Start Postgres + API (optional — dev script can start the API for you)
 docker compose up -d
-```
 
-**Option B — existing Postgres**
-
-```bash
-createdb taskmanager
-```
-
-### 2. Environment
-
-```bash
+# 2. Environment
 cp .env.example .env
-# Edit DATABASE_URL and JWT_SECRET
+
+# 3. Install and run (starts Go API if not already up, then Next.js)
+npm install
+npm run dev
 ```
 
-### 3. Run the API
+Open `http://localhost:3000`. The dev script proxies `/api/*` to `http://localhost:8080`.
+
+### Run services separately
+
+**API only**
 
 ```bash
-cd api && go mod tidy && cd ..
 export $(grep -v '^#' .env | xargs)
 go run ./cmd/server
 ```
 
-API listens on `http://localhost:8080`.
-
-### 4. Run the frontend
-
-In a second terminal:
+**Frontend only** (with API already running)
 
 ```bash
-npm install
-# Point Next.js rewrites at the local Go server
 export API_URL=http://localhost:8080
-npm run dev
+npm run dev:web
 ```
 
-Open `http://localhost:3000`.
+### Environment variables
 
-**Shortcut** — one command (detects Docker API if already running):
-
-```bash
-npm run dev
-```
+| Variable       | Required | Description                                      |
+|----------------|----------|--------------------------------------------------|
+| `DATABASE_URL` | Yes      | PostgreSQL connection string                     |
+| `JWT_SECRET`   | Yes      | Secret for signing JWTs                          |
+| `API_URL`      | Local    | Go API base URL for Next.js rewrites (not needed on Vercel) |
+| `API_PORT`     | No       | Go API port locally (default `8080`)             |
 
 ## Deployment (Vercel)
 
-Frontend and backend deploy together on one Vercel project. The Go API runs as a serverless function; Next.js serves the UI.
+Frontend and API deploy as one Vercel project. Next.js serves the UI; the Go handler in `api/index.go` serves `/api/*`.
 
-### Step-by-step
+1. Push the repo to GitHub.
+2. Create a PostgreSQL database (Neon, Supabase, or Vercel Postgres). Use the **pooled** connection string.
+3. Import the project at [vercel.com/new](https://vercel.com/new). Framework: Next.js.
+4. Set environment variables for Production and Preview:
 
-1. **Push to GitHub**
-   ```bash
-   git init
-   git add .
-   git commit -m "Task management app — Go API, Next.js, PostgreSQL"
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
+   | Variable       | Value                                |
+   |----------------|--------------------------------------|
+   | `DATABASE_URL` | `postgres://...` from your provider  |
+   | `JWT_SECRET`   | Long random string                   |
 
-2. **Create PostgreSQL** (pick one)
-   - [Neon](https://neon.tech) — free tier, copy the connection string
-   - [Supabase](https://supabase.com) → Project Settings → Database → connection string
-   - [Vercel Postgres](https://vercel.com/storage/postgres) — integrates directly in the Vercel dashboard
+   Do **not** set `API_URL` in production — the API is on the same domain.
 
-   Use the **pooled** connection string if available (better for serverless).
+5. Deploy and verify:
+   - `https://<your-app>.vercel.app` — frontend
+   - `https://<your-app>.vercel.app/api/health` — `{"status":"ok"}`
 
-3. **Import project in Vercel**
-   - Go to [vercel.com/new](https://vercel.com/new) → Import your GitHub repo
-   - Framework: **Next.js** (auto-detected)
-   - Root directory: `.` (default)
-   - Do **not** set `API_URL` in production
-
-4. **Set environment variables** (Vercel → Project → Settings → Environment Variables)
-
-   | Variable       | Value                                      | Environments   |
-   |----------------|--------------------------------------------|----------------|
-   | `DATABASE_URL` | `postgres://...` from step 2               | Production, Preview |
-   | `JWT_SECRET`   | Long random string (`openssl rand -hex 32`) | Production, Preview |
-
-5. **Deploy** — click Deploy. Vercel will:
-   - Build Next.js (`npm run build`)
-   - Deploy Go handler from `api/index.go` at `/api/*` (via `vercel.json`)
-
-6. **Verify**
-   - `https://<your-app>.vercel.app` → frontend
-   - `https://<your-app>.vercel.app/api/health` → `{"status":"ok"}`
-   - Sign up, create a task, refresh — auth and tasks should persist
-
-### Submission email
+### Submission
 
 Send to **sabir@rival.io**:
 
 - GitHub repo URL (public, or grant access)
-- Live URL: `https://<your-app>.vercel.app` (frontend + API on same domain)
+- Live URL: `https://<your-app>.vercel.app`
 
-## Assessment deliverables checklist
+## API
 
-| Requirement | Status | Location |
-|-------------|--------|----------|
-| REST API (CRUD + validation) | Done | `api/` |
-| PostgreSQL persistence | Done | `api/db.go` |
-| JWT auth + password hashing | Done | `api/auth.go` |
-| User-scoped tasks | Done | `api/tasks.go` |
-| Next.js frontend | Done | `src/` |
-| Status filter + pagination | Done | `/tasks` page |
-| Create/edit form + validation | Done | `TaskForm` component |
-| Search + sort (combined with filters) | Done | `/tasks` page |
-| Loading / empty / error states | Done | `/tasks` page |
-| Responsive layout | Done | mobile filter pills + desktop rail |
-| README with setup instructions | Done | `README.md` |
-| `.env.example` | Done | `.env.example` |
-| ≥ 3 meaningful tests | Done | 7 Go + 5 frontend tests |
-| Clean commit history | **You** | commit logically before submitting |
-| **Bonus:** Docker Compose | Done | `docker-compose.yml` |
-| **Bonus:** CI pipeline | Done | `.github/workflows/ci.yml` |
-| **Bonus:** Dark mode | Done | theme toggle in sidebar |
-| **Bonus:** Optimistic UI | Done | complete/delete rollback |
-| **Bonus:** Admin role (API) | Done | `role = 'admin'` in DB |
-| Deployed live link | **You** | follow steps above |
+| Method | Path               | Auth | Description                           |
+|--------|--------------------|------|---------------------------------------|
+| POST   | `/api/auth/signup` | —    | Register                              |
+| POST   | `/api/auth/login`  | —    | Login, returns JWT                    |
+| GET    | `/api/health`      | —    | Health check                          |
+| POST   | `/api/tasks`       | ✓    | Create task                           |
+| GET    | `/api/tasks`       | ✓    | List (filter, search, sort, paginate) |
+| GET    | `/api/tasks/:id`   | ✓    | Get one task                          |
+| PATCH  | `/api/tasks/:id`   | ✓    | Update task                           |
+| DELETE | `/api/tasks/:id`   | ✓    | Delete task                           |
 
-### Assumptions & trade-offs
+**Query params for `GET /api/tasks`**
 
-- **Vercel + Go**: A single serverless handler routes all `/api/*` requests. Cold starts add latency on first request; connection pooling uses pgx pool per instance.
-- **Auth**: JWT in localStorage (not httpOnly cookies) for simplicity; refresh on page load via stored token.
-- **Admin role**: Schema supports `admin` role for viewing all tasks, but no UI to promote users — set `role = 'admin'` manually in DB if needed.
-- **Migrations**: Schema is applied via `CREATE TABLE IF NOT EXISTS` on first API request — fine for assessment scope; use a migration tool for production.
+| Param        | Values                                      | Default   |
+|--------------|---------------------------------------------|-----------|
+| `status`     | `todo`, `in_progress`, `complete`           | all       |
+| `search`     | case-insensitive title match                | —         |
+| `sort_by`    | `due_date`, `priority`, `created_at`        | `created_at` |
+| `sort_order` | `asc`, `desc`                               | `desc`    |
+| `page`       | positive integer                            | `1`       |
+| `limit`      | positive integer                            | `10`      |
 
 ## Tests
 
 ```bash
 # Backend (7 tests)
-cd api && go test ./... -v
+go test ./pkg/core/... -v
 
-# Frontend (4 tests)
+# Frontend (11 tests)
 npm test
 ```
 
 ## Project structure
 
 ```
-├── api/              # Vercel entry point only (index.go)
-├── pkg/core/    # Go REST API logic
-├── cmd/server/       # Standalone API server for local dev
-├── src/              # Next.js app
-├── vercel.json       # Routes /api/* to Go handler
-├── docker-compose.yml
-└── .github/workflows/ci.yml
+├── api/                  # Vercel serverless entry point
+├── pkg/core/             # Go API — routes, auth, tasks, validation
+├── cmd/server/           # Standalone API server for local dev
+├── src/                  # Next.js app
+│   ├── app/              # Pages (login, signup, tasks)
+│   ├── components/       # UI components
+│   └── lib/              # API client, auth, date/urgency helpers
+├── scripts/dev.sh        # Local dev orchestration
+├── docker-compose.yml    # Postgres + API containers
+├── vercel.json           # Rewrites /api/* to Go handler
+└── .github/workflows/    # CI pipeline
 ```
 
 ## License
