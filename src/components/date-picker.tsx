@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   calendarDateToInput,
   formatDateInputValue,
@@ -18,12 +19,14 @@ interface DatePickerProps {
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const PANEL_WIDTH = 256;
 
 export function DatePicker({ id, value, onChange, label = "Due date" }: DatePickerProps) {
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
 
   const parsed = parseCalendarDate(value);
   const today = new Date();
@@ -39,6 +42,39 @@ export function DatePicker({ id, value, onChange, label = "Due date" }: DatePick
       setCursorMonth(viewMonth);
     }
   }, [open, viewYear, viewMonth]);
+
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+
+    function updatePosition() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const panelHeight = 320;
+
+      let left = rect.left;
+      if (left + PANEL_WIDTH > viewportWidth - 12) {
+        left = Math.max(12, viewportWidth - PANEL_WIDTH - 12);
+      }
+
+      let top = rect.bottom + 6;
+      if (top + panelHeight > viewportHeight - 12) {
+        top = Math.max(12, rect.top - panelHeight - 6);
+      }
+
+      setPanelPos({ top, left });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -107,6 +143,119 @@ export function DatePicker({ id, value, onChange, label = "Due date" }: DatePick
     day: today.getDate(),
   };
 
+  const calendarPanel = open ? (
+    <div
+      ref={panelRef}
+      id={listId}
+      role="dialog"
+      aria-label="Choose due date"
+      style={{ top: panelPos.top, left: panelPos.left, width: PANEL_WIDTH }}
+      className="fixed z-[60] rounded-lg border border-ink/12 dark:border-dark-muted/25 bg-surface-raised dark:bg-dark-raised shadow-lg overflow-hidden animate-[modal-enter_0.15s_ease-out]"
+    >
+      <div className="h-1 bg-ink/5 dark:bg-dark-muted/20" aria-hidden />
+      <div className="p-3">
+        <div className="grid grid-cols-[2rem_1fr_2rem] items-center gap-1 mb-3">
+          <button
+            type="button"
+            onClick={prevMonth}
+            className="flex items-center justify-center size-8 rounded hover:bg-ink/5 dark:hover:bg-dark-muted/15 text-ink-muted dark:text-dark-muted"
+            aria-label="Previous month"
+          >
+            <ChevronLeft />
+          </button>
+          <p className="font-mono text-xs text-center text-ink dark:text-dark-ink whitespace-nowrap">
+            {monthLabel}
+          </p>
+          <button
+            type="button"
+            onClick={nextMonth}
+            className="flex items-center justify-center size-8 rounded hover:bg-ink/5 dark:hover:bg-dark-muted/15 text-ink-muted dark:text-dark-muted"
+            aria-label="Next month"
+          >
+            <ChevronRight />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 mb-1">
+          {WEEKDAYS.map((d) => (
+            <span
+              key={d}
+              className="h-7 flex items-center justify-center font-mono text-[10px] text-ink-muted/70 dark:text-dark-muted/70"
+            >
+              {d}
+            </span>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7">
+          {cells.map((day, i) => {
+            if (day === null) {
+              return <span key={`empty-${i}`} className="h-8" aria-hidden />;
+            }
+            const isSelected =
+              parsed?.year === cursorYear &&
+              parsed?.month === cursorMonth &&
+              parsed?.day === day;
+            const isToday =
+              todayParts.year === cursorYear &&
+              todayParts.month === cursorMonth &&
+              todayParts.day === day;
+
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => selectDay(day)}
+                className={`h-8 w-full flex items-center justify-center rounded text-sm font-mono transition-colors ${
+                  isSelected
+                    ? "bg-action text-white"
+                    : isToday
+                      ? "ring-1 ring-ember/60 text-ember hover:bg-ember/10"
+                      : "hover:bg-ink/5 dark:hover:bg-dark-muted/15"
+                }`}
+                aria-pressed={isSelected}
+                aria-label={`${monthLabel} ${day}`}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-2 mt-3 pt-3 border-t border-ink/8 dark:border-dark-muted/20">
+          <button
+            type="button"
+            onClick={() => {
+              onChange(
+                calendarDateToInput({
+                  year: todayParts.year,
+                  month: todayParts.month,
+                  day: todayParts.day,
+                })
+              );
+              setOpen(false);
+            }}
+            className="flex-1 px-2 py-1.5 text-xs rounded border border-ink/12 dark:border-dark-muted/25 hover:bg-ink/5 dark:hover:bg-dark-muted/10"
+          >
+            Today
+          </button>
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="flex-1 px-2 py-1.5 text-xs rounded text-ink-muted dark:text-dark-muted hover:bg-ink/5 dark:hover:bg-dark-muted/10"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="relative">
       <label htmlFor={id} className="block text-sm mb-1.5">
@@ -128,117 +277,9 @@ export function DatePicker({ id, value, onChange, label = "Due date" }: DatePick
         <CalendarIcon />
       </button>
 
-      {open && (
-        <div
-          ref={panelRef}
-          id={listId}
-          role="dialog"
-          aria-label="Choose due date"
-          className="absolute z-40 mt-1.5 w-full min-w-[17rem] rounded-lg border border-ink/12 dark:border-dark-muted/25 bg-surface-raised dark:bg-dark-raised shadow-lg overflow-hidden animate-[modal-enter_0.15s_ease-out]"
-        >
-          <div className="ledger-rules-dark h-1 opacity-30" aria-hidden />
-          <div className="p-3">
-            <div className="flex items-center justify-between mb-3">
-              <button
-                type="button"
-                onClick={prevMonth}
-                className="p-1.5 rounded hover:bg-ink/5 dark:hover:bg-dark-muted/15 text-ink-muted dark:text-dark-muted"
-                aria-label="Previous month"
-              >
-                <ChevronLeft />
-              </button>
-              <p className="font-mono text-xs uppercase tracking-wider text-ink-muted dark:text-dark-muted">
-                {monthLabel}
-              </p>
-              <button
-                type="button"
-                onClick={nextMonth}
-                className="p-1.5 rounded hover:bg-ink/5 dark:hover:bg-dark-muted/15 text-ink-muted dark:text-dark-muted"
-                aria-label="Next month"
-              >
-                <ChevronRight />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-7 gap-0.5 mb-1">
-              {WEEKDAYS.map((d) => (
-                <span
-                  key={d}
-                  className="text-center font-mono text-[10px] text-ink-muted/70 dark:text-dark-muted/70 py-1"
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-0.5">
-              {cells.map((day, i) => {
-                if (day === null) {
-                  return <span key={`empty-${i}`} />;
-                }
-                const isSelected =
-                  parsed?.year === cursorYear &&
-                  parsed?.month === cursorMonth &&
-                  parsed?.day === day;
-                const isToday =
-                  todayParts.year === cursorYear &&
-                  todayParts.month === cursorMonth &&
-                  todayParts.day === day;
-
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => selectDay(day)}
-                    className={`aspect-square rounded text-sm font-mono transition-colors ${
-                      isSelected
-                        ? "bg-action text-white"
-                        : isToday
-                          ? "ring-1 ring-ember/60 text-ember hover:bg-ember/10"
-                          : "hover:bg-ink/5 dark:hover:bg-dark-muted/15"
-                    }`}
-                    aria-pressed={isSelected}
-                    aria-label={`${monthLabel} ${day}`}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex gap-2 mt-3 pt-3 border-t border-ink/8 dark:border-dark-muted/20">
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(
-                    calendarDateToInput({
-                      year: todayParts.year,
-                      month: todayParts.month,
-                      day: todayParts.day,
-                    })
-                  );
-                  setOpen(false);
-                }}
-                className="flex-1 px-2 py-1.5 text-xs rounded border border-ink/12 dark:border-dark-muted/25 hover:bg-ink/5 dark:hover:bg-dark-muted/10"
-              >
-                Today
-              </button>
-              {value && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange("");
-                    setOpen(false);
-                  }}
-                  className="flex-1 px-2 py-1.5 text-xs rounded text-ink-muted dark:text-dark-muted hover:bg-ink/5 dark:hover:bg-dark-muted/10"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {typeof document !== "undefined" &&
+        calendarPanel &&
+        createPortal(calendarPanel, document.body)}
     </div>
   );
 }

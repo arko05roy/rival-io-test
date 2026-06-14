@@ -17,6 +17,7 @@ import type { Task, TaskFilters, User } from "@/lib/types";
 import { TaskCard, TaskForm } from "@/components/task-card";
 import { DeadlineHorizon } from "@/components/deadline-horizon";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { TaskModal } from "@/components/task-modal";
 import { MobileStatusFilter, TasksSidebar } from "@/components/tasks-sidebar";
 import { useTheme } from "@/components/theme-provider";
 
@@ -184,6 +185,19 @@ export default function TasksPage() {
     setFilters((f) => ({ ...f, status, page: 1 }));
   }
 
+  function openCreateModal() {
+    setEditingTask(null);
+    setShowForm(true);
+  }
+
+  function closeTaskModal() {
+    if (formLoading) return;
+    setShowForm(false);
+    setEditingTask(null);
+  }
+
+  const taskModalOpen = showForm || !!editingTask;
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       <MobileStatusFilter
@@ -199,10 +213,7 @@ export default function TasksPage() {
         activeStatus={filters.status ?? ""}
         theme={theme}
         onFilter={setStatusFilter}
-        onAddTask={() => {
-          setEditingTask(null);
-          setShowForm(true);
-        }}
+        onAddTask={openCreateModal}
         onToggleTheme={toggle}
         onLogout={handleLogout}
       />
@@ -226,10 +237,7 @@ export default function TasksPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setEditingTask(null);
-              setShowForm(true);
-            }}
+            onClick={openCreateModal}
             className="shrink-0 px-4 py-2.5 rounded-md bg-action hover:bg-action-hover text-white text-sm font-medium shadow-sm"
           >
             Add task
@@ -298,23 +306,6 @@ export default function TasksPage() {
           </div>
         )}
 
-        {(showForm || editingTask) && (
-          <div className="mb-6 p-5 rounded-lg bg-surface-raised dark:bg-dark-raised border border-ink/10 dark:border-dark-muted/20 shadow-sm">
-            <h2 className="font-display text-lg mb-4">
-              {editingTask ? "Edit task" : "New task"}
-            </h2>
-            <TaskForm
-              initial={editingTask ?? undefined}
-              loading={formLoading}
-              onCancel={() => {
-                setShowForm(false);
-                setEditingTask(null);
-              }}
-              onSubmit={editingTask ? handleUpdate : handleCreate}
-            />
-          </div>
-        )}
-
         {loading ? (
           <div className="space-y-3" aria-busy="true" aria-label="Loading tasks">
             {[1, 2, 3].map((i) => (
@@ -335,7 +326,7 @@ export default function TasksPage() {
             {!filters.search && !filters.status && (
               <button
                 type="button"
-                onClick={() => setShowForm(true)}
+                onClick={openCreateModal}
                 className="px-4 py-2 rounded-md bg-action hover:bg-action-hover text-white text-sm"
               >
                 Add task
@@ -389,6 +380,15 @@ export default function TasksPage() {
           </nav>
         )}
       </main>
+
+      <TaskModal
+        open={taskModalOpen}
+        mode={editingTask ? "edit" : "create"}
+        initial={editingTask ?? undefined}
+        loading={formLoading}
+        onSubmit={editingTask ? handleUpdate : handleCreate}
+        onClose={closeTaskModal}
+      />
 
       <ConfirmModal
         open={!!deletingTask}

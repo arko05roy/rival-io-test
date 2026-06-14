@@ -258,7 +258,7 @@ export function TaskForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="task-status" className="block text-sm mb-1.5">
             Status
@@ -289,12 +289,13 @@ export function TaskForm({
             <option value="high">High</option>
           </select>
         </div>
-        <DatePicker
-          id="task-due"
-          value={dueDate}
-          onChange={setDueDate}
-        />
       </div>
+
+      <DatePicker
+        id="task-due"
+        value={dueDate}
+        onChange={setDueDate}
+      />
 
       <div className="flex gap-2 justify-end pt-2">
         <button
