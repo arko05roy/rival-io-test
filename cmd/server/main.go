@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	handler "taskmanager/api"
+	"taskmanager/api/core"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 	}
 
 	log.Printf("API listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, http.HandlerFunc(handler.ServeHTTP)); err != nil {
+	if err := http.ListenAndServe(":"+port, http.HandlerFunc(core.ServeHTTP)); err != nil {
 		log.Fatal(err)
 	}
 }
