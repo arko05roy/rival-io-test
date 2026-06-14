@@ -9,6 +9,7 @@ import {
   urgencyColor,
   urgencyWidth,
 } from "@/lib/urgency";
+import { DatePicker, toDateInputValue } from "@/components/date-picker";
 
 interface TaskCardProps {
   task: Task;
@@ -48,68 +49,74 @@ export function TaskCard({
         }
       />
 
-      <div className="flex-1 p-4 min-w-0">
+      <div className="flex-1 p-4 sm:p-5 min-w-0">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h3
-              className={`font-display text-lg leading-snug truncate ${
-                isComplete ? "line-through text-ink-muted dark:text-dark-muted" : ""
+              className={`font-display text-lg leading-snug ${
+                isComplete
+                  ? "line-through text-ink-muted dark:text-dark-muted"
+                  : ""
               }`}
             >
               {task.title}
             </h3>
             {task.description && (
-              <p className="text-sm text-ink-muted dark:text-dark-muted mt-1 line-clamp-2">
+              <p className="text-sm text-ink-muted dark:text-dark-muted mt-1.5 line-clamp-2 leading-relaxed">
                 {task.description}
               </p>
             )}
           </div>
 
           <span
-            className={`shrink-0 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
+            className={`shrink-0 font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md ${
               task.priority === "high"
-                ? "bg-ember/15 text-ember"
+                ? "bg-ember/15 text-ember ring-1 ring-ember/20"
                 : task.priority === "medium"
-                  ? "bg-ink/8 dark:bg-dark-muted/20 text-ink-muted dark:text-dark-muted"
-                  : "bg-ink/5 dark:bg-dark-muted/10 text-ink-muted/70"
+                  ? "bg-ink/6 dark:bg-dark-muted/20 text-ink-muted dark:text-dark-muted"
+                  : "bg-ink/4 dark:bg-dark-muted/10 text-ink-muted/80"
             }`}
           >
             {priorityLabel(task.priority)}
           </span>
         </div>
 
-        <div className="flex items-center justify-between mt-3 gap-2">
-          <div className="flex items-center gap-3 text-xs font-mono text-ink-muted dark:text-dark-muted">
-            <span className={urgency === "overdue" ? "text-rose" : ""}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 gap-3">
+          <div className="flex items-center gap-2.5">
+            <span
+              className={`inline-flex items-center gap-1.5 font-mono text-xs px-2 py-1 rounded border ${
+                urgency === "overdue"
+                  ? "border-rose/30 bg-rose/8 text-rose"
+                  : "border-ink/10 dark:border-dark-muted/20 bg-ink/[0.03] dark:bg-dark-muted/10 text-ink-muted dark:text-dark-muted"
+              }`}
+            >
+              <CalendarStampIcon />
               {formatDueDate(task.due_date)}
             </span>
             <StatusBadge status={task.status} />
           </div>
 
-          <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 self-end sm:self-auto">
             {!isComplete && (
-              <button
-                type="button"
+              <ActionButton
                 onClick={() => onComplete(task)}
-                className="text-xs px-2 py-1 rounded text-moss hover:bg-moss/10"
+                className="text-moss hover:bg-moss/10"
               >
                 Complete
-              </button>
+              </ActionButton>
             )}
-            <button
-              type="button"
+            <ActionButton
               onClick={() => onEdit(task)}
-              className="text-xs px-2 py-1 rounded text-action hover:bg-action/10"
+              className="text-action hover:bg-action/10"
             >
               Edit
-            </button>
-            <button
-              type="button"
+            </ActionButton>
+            <ActionButton
               onClick={() => onDelete(task)}
-              className="text-xs px-2 py-1 rounded text-rose hover:bg-rose/10"
+              className="text-rose hover:bg-rose/10"
             >
               Delete
-            </button>
+            </ActionButton>
           </div>
         </div>
       </div>
@@ -117,16 +124,60 @@ export function TaskCard({
   );
 }
 
-function StatusBadge({ status }: { status: TaskStatus }) {
-  const labels: Record<TaskStatus, string> = {
-    todo: "To do",
-    in_progress: "In progress",
-    complete: "Done",
-  };
+function ActionButton({
+  children,
+  onClick,
+  className,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  className: string;
+}) {
   return (
-    <span className="text-ink-muted/80 dark:text-dark-muted/80">
-      {labels[status]}
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CalendarStampIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      className="opacity-70"
+      aria-hidden
+    >
+      <rect x="1" y="2" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1" />
+      <path d="M1 4.5h10" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function StatusBadge({ status }: { status: TaskStatus }) {
+  const config: Record<TaskStatus, { label: string; className: string }> = {
+    todo: {
+      label: "To do",
+      className: "text-ink-muted dark:text-dark-muted",
+    },
+    in_progress: {
+      label: "In progress",
+      className: "text-action",
+    },
+    complete: {
+      label: "Done",
+      className: "text-moss",
+    },
+  };
+  const { label, className } = config[status];
+  return (
+    <span className={`text-xs font-medium ${className}`}>{label}</span>
   );
 }
 
@@ -153,9 +204,7 @@ export function TaskForm({
   const [priority, setPriority] = useState<TaskPriority>(
     initial?.priority ?? "medium"
   );
-  const [dueDate, setDueDate] = useState(
-    initial?.due_date ? initial.due_date.slice(0, 10) : ""
-  );
+  const [dueDate, setDueDate] = useState(toDateInputValue(initial?.due_date));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function validate() {
@@ -209,7 +258,7 @@ export function TaskForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label htmlFor="task-status" className="block text-sm mb-1.5">
             Status
@@ -240,18 +289,11 @@ export function TaskForm({
             <option value="high">High</option>
           </select>
         </div>
-        <div className="col-span-2 sm:col-span-1">
-          <label htmlFor="task-due" className="block text-sm mb-1.5">
-            Due date
-          </label>
-          <input
-            id="task-due"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full px-3 py-2 rounded-md bg-surface dark:bg-dark-bg border border-ink/15 dark:border-dark-muted/30 text-sm font-mono"
-          />
-        </div>
+        <DatePicker
+          id="task-due"
+          value={dueDate}
+          onChange={setDueDate}
+        />
       </div>
 
       <div className="flex gap-2 justify-end pt-2">

@@ -25,15 +25,23 @@ describe("getUrgency", () => {
   it("returns overdue for past due dates", () => {
     const past = new Date();
     past.setDate(past.getDate() - 2);
+    const y = past.getFullYear();
+    const m = String(past.getMonth() + 1).padStart(2, "0");
+    const d = String(past.getDate()).padStart(2, "0");
     expect(
-      getUrgency(makeTask({ due_date: past.toISOString() }))
+      getUrgency(makeTask({ due_date: `${y}-${m}-${d}T00:00:00Z` }))
     ).toBe("overdue");
   });
 
   it("returns high for tasks due within a day", () => {
     const soon = new Date();
-    soon.setHours(soon.getHours() + 12);
-    expect(getUrgency(makeTask({ due_date: soon.toISOString() }))).toBe("high");
+    soon.setDate(soon.getDate() + 1);
+    const y = soon.getFullYear();
+    const m = String(soon.getMonth() + 1).padStart(2, "0");
+    const d = String(soon.getDate()).padStart(2, "0");
+    expect(getUrgency(makeTask({ due_date: `${y}-${m}-${d}T00:00:00Z` }))).toBe(
+      "high"
+    );
   });
 });
 

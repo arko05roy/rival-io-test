@@ -1,3 +1,4 @@
+import { daysBetween, startOfToday, toLocalDate } from "./dates";
 import type { Task } from "./types";
 
 export type UrgencyLevel = "none" | "low" | "medium" | "high" | "overdue";
@@ -5,10 +6,10 @@ export type UrgencyLevel = "none" | "low" | "medium" | "high" | "overdue";
 export function getUrgency(task: Task): UrgencyLevel {
   if (task.status === "complete" || !task.due_date) return "none";
 
-  const now = new Date();
-  const due = new Date(task.due_date);
-  const diffMs = due.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  const due = toLocalDate(task.due_date);
+  if (!due) return "none";
+
+  const diffDays = daysBetween(startOfToday(), due);
 
   if (diffDays < 0) return "overdue";
   if (diffDays <= 1) return "high";
@@ -47,15 +48,7 @@ export function urgencyWidth(level: UrgencyLevel): string {
   }
 }
 
-export function formatDueDate(iso: string | null): string {
-  if (!iso) return "No due date";
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
-  });
-}
+export { formatDueDate } from "./dates";
 
 export function priorityLabel(priority: string): string {
   return priority.charAt(0).toUpperCase() + priority.slice(1);

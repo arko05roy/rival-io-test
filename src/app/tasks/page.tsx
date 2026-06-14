@@ -16,6 +16,7 @@ import {
 import type { Task, TaskFilters, User } from "@/lib/types";
 import { TaskCard, TaskForm } from "@/components/task-card";
 import { DeadlineHorizon } from "@/components/deadline-horizon";
+import { ConfirmModal } from "@/components/confirm-modal";
 import { useTheme } from "@/components/theme-provider";
 
 const STATUS_OPTIONS = [
@@ -51,6 +52,8 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -152,21 +155,29 @@ export default function TasksPage() {
     }
   }
 
-  async function handleDelete(task: Task) {
-    if (!confirm(`Delete "${task.title}"?`)) return;
+  function requestDelete(task: Task) {
+    setDeletingTask(task);
+  }
 
+  async function confirmDelete() {
+    if (!deletingTask) return;
+
+    const task = deletingTask;
     const prev = [...tasks];
+    setDeleteLoading(true);
     setOptimisticIds((s) => new Set(s).add(task.id));
     setTasks((ts) => ts.filter((t) => t.id !== task.id));
     setTotal((t) => Math.max(0, t - 1));
 
     try {
       await deleteTask(task.id);
+      setDeletingTask(null);
       await fetchTasks();
     } catch (err) {
       setTasks(prev);
       setError(err instanceof Error ? err.message : "Failed to delete task");
     } finally {
+      setDeleteLoading(false);
       setOptimisticIds((s) => {
         const next = new Set(s);
         next.delete(task.id);
@@ -390,7 +401,7 @@ export default function TasksPage() {
                   optimistic={optimisticIds.has(task.id)}
                   onEdit={setEditingTask}
                   onComplete={handleComplete}
-                  onDelete={handleDelete}
+                  onDelete={requestDelete}
                 />
               </li>
             ))}
@@ -428,6 +439,22 @@ export default function TasksPage() {
           </nav>
         )}
       </main>
+
+      <ConfirmModal
+        open={!!deletingTask}
+        title="Delete task"
+        description={
+          deletingTask
+            ? `"${deletingTask.title}" will be removed from your ledger. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete task"
+        cancelLabel="Keep task"
+        variant="danger"
+        loading={deleteLoading}
+        onConfirm={confirmDelete}
+        onCancel={() => !deleteLoading && setDeletingTask(null)}
+      />
     </div>
   );
 }
