@@ -17,14 +17,8 @@ import type { Task, TaskFilters, User } from "@/lib/types";
 import { TaskCard, TaskForm } from "@/components/task-card";
 import { DeadlineHorizon } from "@/components/deadline-horizon";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { MobileStatusFilter, TasksSidebar } from "@/components/tasks-sidebar";
 import { useTheme } from "@/components/theme-provider";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "todo", label: "To do" },
-  { value: "in_progress", label: "In progress" },
-  { value: "complete", label: "Done" },
-];
 
 const SORT_OPTIONS = [
   { value: "created_at", label: "Created date" },
@@ -186,76 +180,32 @@ export default function TasksPage() {
     }
   }
 
+  function setStatusFilter(status: string) {
+    setFilters((f) => ({ ...f, status, page: 1 }));
+  }
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Mobile status filter */}
-      <div className="lg:hidden flex gap-1.5 p-3 overflow-x-auto border-b border-ink/10 dark:border-dark-muted/20 bg-surface-raised dark:bg-dark-raised">
-        {STATUS_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() =>
-              setFilters((f) => ({ ...f, status: opt.value, page: 1 }))
-            }
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              (filters.status ?? "") === opt.value
-                ? "bg-rail text-white"
-                : "bg-ink/5 dark:bg-dark-muted/15 text-ink-muted dark:text-dark-muted"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <MobileStatusFilter
+        activeStatus={filters.status ?? ""}
+        onFilter={setStatusFilter}
+      />
 
-      <aside className="hidden lg:flex lg:w-56 shrink-0 bg-rail text-white p-5 lg:min-h-screen flex-col gap-6 relative overflow-hidden">
-        <div className="absolute inset-0 ledger-rules-dark pointer-events-none" aria-hidden />
-        <div className="relative">
-          <p className="font-display text-xl">Ledger</p>
-          <p className="font-mono text-[10px] text-white/40 mt-0.5 truncate">
-            {user?.email}
-          </p>
-        </div>
-
-        <nav className="relative space-y-1">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-white/40 mb-2">
-            Filter
-          </p>
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() =>
-                setFilters((f) => ({ ...f, status: opt.value, page: 1 }))
-              }
-              className={`block w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                (filters.status ?? "") === opt.value
-                  ? "bg-white/15 text-white"
-                  : "text-white/60 hover:text-white hover:bg-white/8"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="relative mt-auto flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={toggle}
-            className="text-left px-3 py-2 text-sm text-white/60 hover:text-white"
-          >
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="text-left px-3 py-2 text-sm text-white/60 hover:text-white"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
+      <TasksSidebar
+        user={user}
+        tasks={tasks}
+        total={total}
+        loading={loading}
+        activeStatus={filters.status ?? ""}
+        theme={theme}
+        onFilter={setStatusFilter}
+        onAddTask={() => {
+          setEditingTask(null);
+          setShowForm(true);
+        }}
+        onToggleTheme={toggle}
+        onLogout={handleLogout}
+      />
 
       <main className="flex-1 p-5 lg:p-10 max-w-4xl w-full ledger-paper">
         <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">

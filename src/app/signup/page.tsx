@@ -3,9 +3,24 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { AuthShell } from "@/components/auth-shell";
+import {
+  AuthError,
+  AuthField,
+  AuthShell,
+  AuthSubmitButton,
+} from "@/components/auth-shell";
 import { signup } from "@/lib/api";
 import { setAuth } from "@/lib/auth";
+
+function passwordStrength(password: string): number {
+  if (!password) return 0;
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
+  if (/\d/.test(password)) score += 1;
+  return Math.min(score, 4);
+}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -13,6 +28,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const strength = passwordStrength(password);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -37,66 +54,70 @@ export default function SignupPage() {
 
   return (
     <AuthShell
+      variant="signup"
       headline="Start with a clear list."
       subline="One account. Your tasks only."
       title="Create account"
-      description="Takes less than a minute."
+      description="Your ledger starts empty — that's the point."
       footer={
-        <p className="text-sm text-ink-muted dark:text-dark-muted">
+        <p className="text-sm text-ink-muted dark:text-dark-muted text-center">
           Already have an account?{" "}
-          <Link href="/login" className="text-action hover:underline">
+          <Link
+            href="/login"
+            className="text-action font-medium hover:underline underline-offset-2"
+          >
             Sign in
           </Link>
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={setEmail}
+        />
         <div>
-          <label htmlFor="email" className="block text-sm mb-1.5">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-md bg-surface-raised dark:bg-dark-raised border border-ink/15 dark:border-dark-muted/30 text-sm shadow-sm"
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="block text-sm mb-1.5">
-            Password
-          </label>
-          <input
+          <AuthField
             id="password"
+            label="Password"
             type="password"
             autoComplete="new-password"
             required
             minLength={8}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-md bg-surface-raised dark:bg-dark-raised border border-ink/15 dark:border-dark-muted/30 text-sm shadow-sm"
+            onChange={setPassword}
+            hint="At least 8 characters"
           />
-          <p className="text-xs text-ink-muted dark:text-dark-muted mt-1">
-            At least 8 characters
-          </p>
+          {password.length > 0 && (
+            <div className="mt-3 flex gap-1" aria-hidden>
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${
+                    i < strength
+                      ? strength <= 1
+                        ? "bg-rose/70"
+                        : strength <= 2
+                          ? "bg-ember/80"
+                          : "bg-moss/80"
+                      : "bg-ink/10 dark:bg-dark-muted/20"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {error && (
-          <p role="alert" className="text-sm text-rose px-3 py-2 rounded-md bg-rose/8">
-            {error}
-          </p>
-        )}
+        {error && <AuthError message={error} />}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-2.5 rounded-md bg-action hover:bg-action-hover text-white text-sm font-medium disabled:opacity-50"
-        >
+        <AuthSubmitButton loading={loading}>
           {loading ? "Creating account…" : "Create account"}
-        </button>
+        </AuthSubmitButton>
       </form>
     </AuthShell>
   );
