@@ -200,7 +200,7 @@ npm test
 
 ```
 ├── api/              # Vercel entry point only (index.go)
-├── internal/core/    # Go REST API logic
+├── pkg/core/    # Go REST API logic
 ├── cmd/server/       # Standalone API server for local dev
 ├── src/              # Next.js app
 ├── vercel.json       # Routes /api/* to Go handler

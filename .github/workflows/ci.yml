@@ -17,7 +17,7 @@ jobs:
         run: |
           go mod tidy
           cd api && go mod tidy
-          go test ./internal/core/... -v
+          go test ./pkg/core/... -v
 
   test-frontend:
     runs-on: ubuntu-latest
