@@ -110,12 +110,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user User
-	err = s.pool.QueryRow(r.Context(), `
-		INSERT INTO users (email, password_hash, role)
-		VALUES ($1, $2, $3)
-		RETURNING id, email, role, created_at
-	`, email, hash, RoleUser).Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
+	user, err := s.createUser(r.Context(), email, hash)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			writeError(w, http.StatusConflict, "email already registered")
@@ -150,11 +145,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
-	var user User
-	err := s.pool.QueryRow(r.Context(), `
-		SELECT id, email, password_hash, role, created_at
-		FROM users WHERE email = $1
-	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt)
+	user, err := s.findUserByEmail(r.Context(), email)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid email or password")
 		return

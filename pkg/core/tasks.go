@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,14 +41,14 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		priority = PriorityMedium
 	}
 
-	var task Task
-	err = s.pool.QueryRow(r.Context(), `
-		INSERT INTO tasks (user_id, title, description, status, priority, due_date)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, user_id, title, description, status, priority, due_date, created_at, updated_at
-	`, user.UserID, strings.TrimSpace(req.Title), req.Description, status, priority, dueDate).Scan(
-		&task.ID, &task.UserID, &task.Title, &task.Description, &task.Status, &task.Priority,
-		&task.DueDate, &task.CreatedAt, &task.UpdatedAt,
+	task, err := s.createTaskRecord(
+		r.Context(),
+		user.UserID,
+		strings.TrimSpace(req.Title),
+		req.Description,
+		status,
+		priority,
+		dueDate,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create task")
@@ -83,7 +82,6 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	if limit < 1 || limit > 100 {
 		limit = 10
 	}
-	offset := (page - 1) * limit
 
 	if status != "" && !validStatuses[status] {
 		writeError(w, http.StatusBadRequest, "invalid status filter")
@@ -94,91 +92,22 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := []interface{}{}
-	where := []string{}
-	argIdx := 1
-
-	if user.Role != RoleAdmin {
-		where = append(where, fmt.Sprintf("user_id = $%d", argIdx))
-		args = append(args, user.UserID)
-		argIdx++
-	}
-
-	if status != "" {
-		where = append(where, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, status)
-		argIdx++
-	}
-
-	if search != "" {
-		where = append(where, fmt.Sprintf("title ILIKE $%d", argIdx))
-		args = append(args, "%"+search+"%")
-		argIdx++
-	}
-
-	whereClause := ""
-	if len(where) > 0 {
-		whereClause = "WHERE " + strings.Join(where, " AND ")
-	}
-
-	countQuery := "SELECT COUNT(*) FROM tasks " + whereClause
-	var total int
-	if err := s.pool.QueryRow(r.Context(), countQuery, args...).Scan(&total); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not count tasks")
-		return
-	}
-
-	orderClause := "ORDER BY created_at DESC"
-	if sortBy != "" {
-		if sortBy == "priority" {
-			orderClause = "ORDER BY " + priorityOrderSQL(sortOrder)
-		} else {
-			dir := "ASC"
-			if sortOrder == "desc" {
-				dir = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s NULLS LAST", sortBy, dir)
-		}
-	}
-
-	listQuery := fmt.Sprintf(`
-		SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-		FROM tasks %s %s LIMIT $%d OFFSET $%d
-	`, whereClause, orderClause, argIdx, argIdx+1)
-
-	listArgs := append(args, limit, offset)
-	rows, err := s.pool.Query(r.Context(), listQuery, listArgs...)
+	res, err := s.listTaskRecords(r.Context(), listTasksParams{
+		userID:    user.UserID,
+		role:      user.Role,
+		status:    status,
+		search:    search,
+		sortBy:    sortBy,
+		sortOrder: sortOrder,
+		page:      page,
+		limit:     limit,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list tasks")
 		return
 	}
-	defer rows.Close()
 
-	tasks := []Task{}
-	for rows.Next() {
-		var task Task
-		if err := rows.Scan(
-			&task.ID, &task.UserID, &task.Title, &task.Description, &task.Status, &task.Priority,
-			&task.DueDate, &task.CreatedAt, &task.UpdatedAt,
-		); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not read task")
-			return
-		}
-		tasks = append(tasks, task)
-	}
-
-	totalPages := 0
-	if total > 0 {
-		totalPages = (total + limit - 1) / limit
-	}
-
-	writeJSON(w, http.StatusOK, TaskListResponse{
-		Tasks:      tasks,
-		Page:       page,
-		Limit:      limit,
-		Total:      total,
-		TotalPages: totalPages,
-	})
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -189,29 +118,9 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
-	var task Task
-	var err error
-
-	if user.Role == RoleAdmin {
-		err = s.pool.QueryRow(r.Context(), `
-			SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-			FROM tasks WHERE id = $1
-		`, id).Scan(
-			&task.ID, &task.UserID, &task.Title, &task.Description, &task.Status, &task.Priority,
-			&task.DueDate, &task.CreatedAt, &task.UpdatedAt,
-		)
-	} else {
-		err = s.pool.QueryRow(r.Context(), `
-			SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-			FROM tasks WHERE id = $1 AND user_id = $2
-		`, id, user.UserID).Scan(
-			&task.ID, &task.UserID, &task.Title, &task.Description, &task.Status, &task.Priority,
-			&task.DueDate, &task.CreatedAt, &task.UpdatedAt,
-		)
-	}
-
+	task, err := s.getTaskRecord(r.Context(), user.UserID, user.Role, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
+		if isNotFound(err) {
 			writeError(w, http.StatusNotFound, "task not found")
 			return
 		}
@@ -240,27 +149,9 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var existing Task
-	var err error
-	if user.Role == RoleAdmin {
-		err = s.pool.QueryRow(r.Context(), `
-			SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-			FROM tasks WHERE id = $1
-		`, id).Scan(
-			&existing.ID, &existing.UserID, &existing.Title, &existing.Description, &existing.Status, &existing.Priority,
-			&existing.DueDate, &existing.CreatedAt, &existing.UpdatedAt,
-		)
-	} else {
-		err = s.pool.QueryRow(r.Context(), `
-			SELECT id, user_id, title, description, status, priority, due_date, created_at, updated_at
-			FROM tasks WHERE id = $1 AND user_id = $2
-		`, id, user.UserID).Scan(
-			&existing.ID, &existing.UserID, &existing.Title, &existing.Description, &existing.Status, &existing.Priority,
-			&existing.DueDate, &existing.CreatedAt, &existing.UpdatedAt,
-		)
-	}
+	existing, err := s.getTaskRecord(r.Context(), user.UserID, user.Role, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
+		if isNotFound(err) {
 			writeError(w, http.StatusNotFound, "task not found")
 			return
 		}
@@ -293,16 +184,12 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var task Task
-	err = s.pool.QueryRow(r.Context(), `
-		UPDATE tasks SET title = $1, description = $2, status = $3, priority = $4, due_date = $5, updated_at = NOW()
-		WHERE id = $6
-		RETURNING id, user_id, title, description, status, priority, due_date, created_at, updated_at
-	`, title, description, status, priority, dueDate, id).Scan(
-		&task.ID, &task.UserID, &task.Title, &task.Description, &task.Status, &task.Priority,
-		&task.DueDate, &task.CreatedAt, &task.UpdatedAt,
-	)
+	task, err := s.updateTaskRecord(r.Context(), id, title, description, status, priority, dueDate)
 	if err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, "task not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "could not update task")
 		return
 	}
@@ -318,20 +205,12 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
-	var tag interface{ RowsAffected() int64 }
-	var err error
-
-	if user.Role == RoleAdmin {
-		tag, err = s.pool.Exec(r.Context(), `DELETE FROM tasks WHERE id = $1`, id)
-	} else {
-		tag, err = s.pool.Exec(r.Context(), `DELETE FROM tasks WHERE id = $1 AND user_id = $2`, id, user.UserID)
-	}
-	if err != nil {
+	if err := s.deleteTaskRecord(r.Context(), user.UserID, user.Role, id); err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, "task not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "could not delete task")
-		return
-	}
-	if tag.RowsAffected() == 0 {
-		writeError(w, http.StatusNotFound, "task not found")
 		return
 	}
 

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 
 type Server struct {
 	pool *pgxpool.Pool
+	mem  *memStore
 }
 
 var (
@@ -24,16 +26,18 @@ var (
 func getServer() (*Server, error) {
 	serverOnce.Do(func() {
 		ctx := context.Background()
-		pool, err := connectDB(ctx)
-		if err != nil {
-			serverErr = err
-			return
+		s := &Server{mem: newMemStore()}
+
+		if os.Getenv("USE_DATABASE") == "1" {
+			pool, err := connectDB(ctx)
+			if err == nil && pool != nil {
+				if err := migrate(ctx, pool); err == nil {
+					s.pool = pool
+				}
+			}
 		}
-		if err := migrate(ctx, pool); err != nil {
-			serverErr = err
-			return
-		}
-		serverInst = &Server{pool: pool}
+
+		serverInst = s
 	})
 	return serverInst, serverErr
 }
@@ -73,7 +77,7 @@ func (s *Server) Router() http.Handler {
 func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s, err := getServer()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "database unavailable")
+		writeError(w, http.StatusInternalServerError, "server unavailable")
 		return
 	}
 
