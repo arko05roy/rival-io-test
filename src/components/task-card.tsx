@@ -213,6 +213,11 @@ export function TaskForm({
     if (title.length > 200) next.title = "Title is too long";
     setErrors(next);
     return Object.keys(next).length === 0;
+    if (description.length > 100) {
+      next.description = "Description must be 100 characters or fewer";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -256,6 +261,9 @@ export function TaskForm({
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-3 py-2 rounded-md bg-surface dark:bg-dark-bg border border-ink/15 dark:border-dark-muted/30 text-sm resize-y"
         />
+        {errors.description && (
+          <p className="text-xs text-rose mt-1">{errors.description}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
