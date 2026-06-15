@@ -104,13 +104,14 @@ export function TaskModal({
                 className="text-sm text-ink-muted dark:text-dark-muted mt-1"
               >
                 {description}
-              </p>
-
-              {description.length >100 && (
+                {description.length >100 && (
                 <p className="text-sm text-ink-muted dark:text-dark-muted mt-1">
                   Description is too long. Please shorten it.
                 </p>
               )}
+              </p>
+
+             
             </div>
             <button
               type="button"
