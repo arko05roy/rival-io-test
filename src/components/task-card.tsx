@@ -211,8 +211,6 @@ export function TaskForm({
     const next: Record<string, string> = {};
     if (!title.trim()) next.title = "Title is required";
     if (title.length > 200) next.title = "Title is too long";
-    setErrors(next);
-    return Object.keys(next).length === 0;
     if (description.length > 100) {
       next.description = "Description must be 100 characters or fewer";
     }
@@ -260,6 +258,7 @@ export function TaskForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-3 py-2 rounded-md bg-surface dark:bg-dark-bg border border-ink/15 dark:border-dark-muted/30 text-sm resize-y"
+          aria-invalid={!!errors.description}
         />
         {errors.description && (
           <p className="text-xs text-rose mt-1">{errors.description}</p>
