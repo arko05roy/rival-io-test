@@ -25,35 +25,6 @@ Full-stack task management app with a Go REST API, Next.js frontend, and Postgre
 - **Docker Compose** — local Postgres + API
 - **CI** — GitHub Actions runs Go and frontend tests on push
 
-## Assumptions & trade-offs
-
-**Auth**
-
-- JWT is stored in `localStorage` and sent as a `Bearer` token. This keeps the frontend simple but is more exposed to XSS than httpOnly cookies. A production app would likely use short-lived access tokens with refresh cookies.
-
-**Deployment**
-
-- On Vercel, all `/api/*` traffic goes through a single Go serverless handler (`api/index.go`). Cold starts add latency on the first request after idle time. Each instance maintains its own pgx connection pool — use a pooled connection string (Neon, Supabase, Vercel Postgres) in production.
-
-**Database**
-
-- Schema is applied via `CREATE TABLE IF NOT EXISTS` on the first API request. Fine for this scope; a migration tool (e.g. goose, golang-migrate) would be needed for evolving production schemas.
-
-**Due dates**
-
-- Stored as `TIMESTAMPTZ` in Postgres, but the frontend treats them as calendar dates (`YYYY-MM-DD`) to avoid timezone shifts when picking, editing, or displaying a date. The API accepts ISO 8601 or `YYYY-MM-DD` strings.
-
-**Admin role**
-
-- The `users` table has a `role` column (`user` / `admin`). Admins can list all tasks via the API, but there is no UI to promote users — set `role = 'admin'` manually in the database if needed.
-
-**Search**
-
-- Title search is debounced on the client (300 ms) then sent to the server. Very fast typists may see a brief delay before results update.
-
-**Testing**
-
-- Tests cover validation, auth helpers, date/urgency logic, and password hashing. There are no end-to-end or integration tests against a live database.
 
 ## Local development
 
@@ -104,32 +75,7 @@ npm run dev:web
 | `API_URL`      | Local    | Go API base URL for Next.js rewrites (not needed on Vercel) |
 | `API_PORT`     | No       | Go API port locally (default `8080`)             |
 
-## Deployment (Vercel)
 
-Frontend and API deploy as one Vercel project. Next.js serves the UI; the Go handler in `api/index.go` serves `/api/*`.
-
-1. Push the repo to GitHub.
-2. Create a PostgreSQL database (Neon, Supabase, or Vercel Postgres). Use the **pooled** connection string.
-3. Import the project at [vercel.com/new](https://vercel.com/new). Framework: Next.js.
-4. Set environment variables for Production and Preview:
-
-   | Variable       | Value                                |
-   |----------------|--------------------------------------|
-   | `DATABASE_URL` | `postgres://...` from your provider  |
-   | `JWT_SECRET`   | Long random string                   |
-
-   Do **not** set `API_URL` in production — the API is on the same domain.
-
-5. Deploy and verify:
-   - `https://<your-app>.vercel.app` — frontend
-   - `https://<your-app>.vercel.app/api/health` — `{"status":"ok"}`
-
-### Submission
-
-Send to **sabir@rival.io**:
-
-- GitHub repo URL (public, or grant access)
-- Live URL: `https://<your-app>.vercel.app`
 
 ## API
 
@@ -155,15 +101,7 @@ Send to **sabir@rival.io**:
 | `page`       | positive integer                            | `1`       |
 | `limit`      | positive integer                            | `10`      |
 
-## Tests
 
-```bash
-# Backend (7 tests)
-go test ./pkg/core/... -v
-
-# Frontend (11 tests)
-npm test
-```
 
 ## Project structure
 
